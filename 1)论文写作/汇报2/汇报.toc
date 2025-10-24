@@ -1,0 +1,4 @@
+\beamer@sectionintoc {1}{引言与基本原理}{3}{0}{1}
+\beamer@sectionintoc {2}{核心应用领域}{12}{0}{2}
+\beamer@sectionintoc {3}{其他重要应用}{16}{0}{3}
+\beamer@sectionintoc {4}{总结与展望}{17}{0}{4}
