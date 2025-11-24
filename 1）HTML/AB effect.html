@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aharonov-Bohm 效应模拟演示</title>
+    <!-- 引入 Tailwind CSS (用于样式) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 React 和 ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- 引入 Babel (用于让浏览器识别 JSX 语法) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body { background-color: #f8fafc; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // 从全局对象中获取 React hook
+        const { useState, useEffect, useRef } = React;
+
+        const ABEffectSimulation = () => {
+            const [flux, setFlux] = useState(0); // 磁通量，单位 Phi_0
+            const [isPlaying, setIsPlaying] = useState(true);
+            const canvasRef = useRef(null);
+            const requestRef = useRef();
+            const timeRef = useRef(0);
+
+            // 可视化参数
+            const width = 600;
+            const height = 400;
+            const centerX = width / 2;
+            const centerY = height / 2 - 40;
+            const radius = 80;
+            
+            // 波函数参数
+            const k = 0.2; // 波矢
+            const omega = 0.1; // 角频率
+            const amplitude = 10;
+
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                
+                const animate = () => {
+                if (isPlaying) {
+                    timeRef.current += 1;
+                }
+                
+                // 清空画布
+                ctx.fillStyle = '#f8fafc'; // slate-50
+                ctx.fillRect(0, 0, width, height);
+
+                // --- 1. 绘制环形结构 ---
+                ctx.lineWidth = 40;
+                ctx.strokeStyle = '#e2e8f0'; // slate-200
+                ctx.lineCap = 'round';
+                
+                // 上臂
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, Math.PI, 0);
+                ctx.stroke();
+                
+                // 下臂
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, Math.PI);
+                ctx.stroke();
+
+                // 引线 (Leads)
+                ctx.beginPath();
+                ctx.moveTo(centerX - radius - 60, centerY);
+                ctx.lineTo(centerX - radius, centerY);
+                ctx.stroke();
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX + radius, centerY);
+                ctx.lineTo(centerX + radius + 60, centerY);
+                ctx.stroke();
+
+                // --- 2. 绘制电子波 ---
+                const time = timeRef.current;
+                
+                // 绘制沿圆弧的正弦波函数
+                const drawWave = (isTop, phaseShift) => {
+                    ctx.beginPath();
+                    ctx.lineWidth = 3;
+                    // 颜色：上臂蓝色，下臂红色
+                    ctx.strokeStyle = isTop ? '#3b82f6' : '#ef4444'; 
+                    
+                    const segments = 50;
+                    
+                    for (let i = 0; i <= segments; i++) {
+                    const theta = Math.PI + (isTop ? 1 : -1) * (Math.PI * i / segments);
+                    
+                    const pathDist = i * (Math.PI * radius / segments);
+                    
+                    // 波方程: A * cos(kx - wt + phi)
+                    const waveVal = amplitude * Math.cos(k * pathDist - omega * time + (isTop ? 0 : phaseShift));
+                    
+                    // 极坐标转笛卡尔坐标
+                    const r = radius + waveVal;
+                    const x = centerX + r * Math.cos(theta);
+                    const y = centerY + r * Math.sin(theta);
+                    
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+                };
+
+                // AB效应相位差: Delta Phi = 2*pi * (Flux/Flux_0)
+                const phaseDiff = 2 * Math.PI * flux;
+                
+                drawWave(true, 0);       // 上臂 (参考)
+                drawWave(false, phaseDiff); // 下臂 (受磁场调制)
+
+                // --- 3. 绘制干涉结果 (右侧) ---
+                // 透射几率 T ~ cos^2(phaseDiff / 2)
+                const interferenceFactor = Math.cos(phaseDiff / 2);
+                const intensity = Math.abs(interferenceFactor); 
+                
+                // 输出光束
+                ctx.beginPath();
+                ctx.lineWidth = 4 + 20 * intensity; // 粗细代表电流大小
+                const alpha = 0.2 + 0.8 * intensity;
+                ctx.strokeStyle = `rgba(16, 185, 129, ${alpha})`; // 绿色
+                ctx.moveTo(centerX + radius, centerY);
+                ctx.lineTo(centerX + radius + 60, centerY);
+                ctx.stroke();
+
+                // 输出文字
+                ctx.fillStyle = '#0f172a';
+                ctx.font = '14px sans-serif';
+                ctx.fillText("Interference:", centerX + radius + 70, centerY - 10);
+                ctx.fillText(intensity > 0.9 ? "Constructive" : (intensity < 0.1 ? "Destructive" : "Partial"), centerX + radius + 70, centerY + 10);
+
+
+                // --- 4. 绘制磁通量 (中间的螺线管) ---
+                ctx.beginPath();
+                ctx.fillStyle = '#cbd5e1';
+                ctx.arc(centerX, centerY, 15, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // B 场符号
+                ctx.fillStyle = '#334155';
+                ctx.font = 'bold 16px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(flux > 0 ? "⊙" : (flux < 0 ? "⊗" : "○"), centerX, centerY);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '12px sans-serif';
+                ctx.fillText("B Field", centerX, centerY + 25);
+
+
+                // --- 5. 绘制电导曲线 (底部) ---
+                const graphY = height - 50;
+                const graphH = 60;
+                const graphW = 300;
+                const graphX = (width - graphW) / 2;
+                
+                // 坐标轴
+                ctx.beginPath();
+                ctx.strokeStyle = '#94a3b8';
+                ctx.lineWidth = 1;
+                ctx.moveTo(graphX, graphY); // Y axis top
+                ctx.lineTo(graphX, graphY + graphH); // Origin
+                ctx.lineTo(graphX + graphW, graphY + graphH); // X axis
+                ctx.stroke();
+                
+                // 绘制 G ~ cos^2(phi/2)
+                ctx.beginPath();
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                for (let px = 0; px <= graphW; px++) {
+                    const plotFlux = (px / graphW) * 4 - 0.5; 
+                    const plotG = Math.cos(Math.PI * plotFlux) ** 2;
+                    
+                    const py = (graphY + graphH) - (plotG * graphH);
+                    if (px === 0) ctx.moveTo(graphX + px, py);
+                    else ctx.lineTo(graphX + px, py);
+                }
+                ctx.stroke();
+
+                // 当前点标记
+                const currentPx = ((flux + 0.5) / 4) * graphW;
+                const currentG = Math.cos(Math.PI * flux) ** 2;
+                const currentPy = (graphY + graphH) - (currentG * graphH);
+                
+                ctx.beginPath();
+                ctx.fillStyle = '#ef4444';
+                ctx.arc(graphX + currentPx, currentPy, 5, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // 标签
+                ctx.fillStyle = '#64748b';
+                ctx.font = '12px sans-serif';
+                ctx.fillText("Magnetic Flux Φ/Φ₀", graphX + graphW / 2, graphY + graphH + 20);
+                ctx.fillText("G (2e²/h)", graphX - 25, graphY + graphH / 2);
+                
+                requestRef.current = requestAnimationFrame(animate);
+                };
+
+                requestRef.current = requestAnimationFrame(animate);
+                return () => cancelAnimationFrame(requestRef.current);
+            }, [flux, isPlaying]);
+
+            return (
+                <div className="flex flex-col items-center p-4 bg-white rounded-lg shadow-lg w-full max-w-2xl mx-auto font-sans mt-10">
+                <h2 className="text-xl font-bold mb-4 text-slate-800">Aharonov-Bohm 效应模拟演示</h2>
+                
+                <div className="relative border border-slate-200 rounded-lg overflow-hidden mb-6 bg-slate-50">
+                    <canvas 
+                    ref={canvasRef} 
+                    width={600} 
+                    height={400}
+                    className="w-full h-auto cursor-pointer"
+                    onClick={() => setIsPlaying(!isPlaying)}
+                    />
+                    <div className="absolute top-2 right-2 text-xs text-slate-400">
+                    点击画面 暂停/播放
+                    </div>
+                </div>
+
+                <div className="w-full px-8 space-y-6">
+                    <div className="space-y-2">
+                    <div className="flex justify-between items-center text-slate-700">
+                        <span className="font-semibold">磁通量 (Magnetic Flux) Φ/Φ₀:</span>
+                        <span className="font-mono bg-slate-100 px-2 py-1 rounded border border-slate-300">
+                        {flux.toFixed(2)}
+                        </span>
+                    </div>
+                    <input
+                        type="range"
+                        min="-0.5"
+                        max="3.5"
+                        step="0.01"
+                        value={flux}
+                        onChange={(e) => setFlux(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div className="flex justify-between text-xs text-slate-500">
+                        <span>-0.5</span>
+                        <span>0</span>
+                        <span>1.0</span>
+                        <span>2.0</span>
+                        <span>3.0</span>
+                    </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4 text-sm text-slate-600 bg-slate-50 p-4 rounded border border-slate-100">
+                    <div>
+                        <span className="font-bold text-blue-600">蓝色波:</span> 上臂参考路径
+                    </div>
+                    <div>
+                        <span className="font-bold text-red-500">红色波:</span> 下臂 (受磁通相位调制)
+                    </div>
+                    <div className="col-span-2 mt-2">
+                        <p>
+                        相位差 Δφ = 2π(Φ/Φ₀)。
+                        当 Φ 为整数时，发生相长干涉（电导最大）；当 Φ 为半整数时，发生相消干涉（电导最小）。
+                        </p>
+                    </div>
+                    </div>
+                </div>
+                </div>
+            );
+        };
+
+        // 渲染组件到 DOM
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<ABEffectSimulation />);
+    </script>
+</body>
+</html>
